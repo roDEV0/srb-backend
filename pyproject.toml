@@ -1,0 +1,18 @@
+[project]
+name = "spiare-rb-backend"
+version = "1.0.0-beta.1"
+dependencies = [
+    "aiosqlite",
+    "asyncpg",
+    "idna",
+    "iso8601",
+    "psycopg",
+    "psycopg-binary",
+    "psycopg-pool",
+    "pypika-tortoise",
+    "tortoise-orm",
+    "typing_extensions"
+]
+
+[tool.tortoise]
+tortoise_orm = "settings.TORTOISE_ORM"
