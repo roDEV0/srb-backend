@@ -1,6 +1,8 @@
+import os
+
 TORTOISE_ORM = {
     "connections": {
-        "default": "postgresql://neondb_owner:npg_6tE8cTbGUkdn@ep-autumn-grass-b4r7xlgy-pooler.c-6.us-east-2.aws.neon.tech/neondb",
+        "default": os.getenv("DATABASE_URL"),
     },
     "apps": {
         "models": {
