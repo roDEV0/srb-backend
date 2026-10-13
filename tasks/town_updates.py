@@ -8,7 +8,7 @@ from models.relationships.player_relationships import PlayerTownRelationship, Pl
 from requester import post_request, get_request
 from models.relationships.player_relationships import PlayerTownRelationship, PlayerNationRelationship
 from models.relationships.relationship import PlayerRelationship
-from models.base import Player, Town
+from models.base import Player, Town, Nation
 
 
 class RelationshipManager:
@@ -24,10 +24,6 @@ class RelationshipManager:
 async def check_relationships(session: ClientSession, to_check: list[str]):
     print("Started Relationship Checks")
     new_relationships = []
-    if not to_check:
-        print(to_check)
-        print("Finished Relationship Checks")
-        return
     player_data = await post_request(session, 'players', to_check)
 
     player_instances = await Player.filter(uuid__in=to_check)
@@ -40,7 +36,7 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
     new_relationships.extend([
         PlayerTownRelationship(
             player=player_instance_map[player['uuid']],
-            town=town_instance_map[player['town']['uuid']],
+            town=town_instance_map[player['town']['uuid']] if player['town']['uuid'] in town_instance_map else None,
             relationship=PlayerRelationship.CITIZEN
         ) for player in player_data if player['uuid'] in player_instance_map
     ])
@@ -77,8 +73,65 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
                     player_instance_map[uuid].id for uuid in to_check
                     if uuid in player_instance_map
                 ]
-            ).exclude(query).update(is_valid=False)
+            ).exclude(query).update(ended=True)
         except Exception:
             pass
 
     print("Finished Relationship Checks")
+
+async def check_towns(session: ClientSession, to_check: list[str]):
+    print("Started Town Checks")
+
+    player_data = await post_request(session, 'players', to_check)
+    print(f"Player Data: {[player['town']['uuid'] for player in player_data]}")
+    town_uuids = list({
+        player["town"]["uuid"]
+        for player in player_data
+        if player["town"]["uuid"]
+    })
+    town_data = await post_request(session, 'towns', town_uuids) if town_uuids else []
+
+    new_towns = [Town(
+        uuid = town['uuid'],
+        name = town['name'],
+        town_blocks = len(town['coordinates']['townBlocks']),
+        created_at=datetime.fromtimestamp(town['timestamps']['registered'] / 1000),
+        gold=town['stats']['balance']
+    ) for town in town_data]
+
+    await Town.bulk_create(new_towns, on_conflict=['uuid'], update_fields=['name', 'town_blocks', 'gold'])
+
+    print("Finished Town Checks")
+
+async def check_nation(session: ClientSession, to_check: list[str]):
+    print("Started Nation Checks")
+
+    player_data = await post_request(session, 'players', to_check)
+    nation_uuids = list({
+        player["nation"]["uuid"]
+        for player in player_data
+        if player["nation"]["uuid"]
+    })
+    nation_data = await post_request(session, 'nations', nation_uuids) if nation_uuids else []
+
+    new_nations = [Nation(
+        uuid=nation['uuid'],
+        name=nation['name'],
+        created_at=datetime.fromtimestamp(nation['timestamps']['registered'] / 1000),
+        gold=nation['stats']['balance']
+    ) for nation in nation_data]
+
+    await Nation.bulk_create(new_nations, on_conflict=['uuid'], update_fields=['name', 'gold'])
+
+    print("Finished Nation Checks")
+
+async def recency_checks(session: ClientSession, manager: RelationshipManager):
+    current_queue = manager.queue
+    print(current_queue)
+    if current_queue:
+        await check_towns(session, current_queue)
+        await check_nation(session, current_queue)
+        await check_relationships(session, current_queue)
+
+    manager.flush_queue()
+

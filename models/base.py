@@ -20,7 +20,7 @@ class Town(Model):
 
 class Nation(Model):
     id = fields.IntField(pk=True)
-    uuid = fields.CharField(max_length=64, null=False)
+    uuid = fields.CharField(max_length=64, unique=True)
     name = fields.CharField(max_length=64, null=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     gold = fields.IntField(null=True)
