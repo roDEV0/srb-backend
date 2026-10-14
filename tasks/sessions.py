@@ -5,7 +5,8 @@ import aiohttp
 from models.base import Player
 from models.session import ActiveSession, Session
 from requester import post_request, get_request, position_request
-from tasks.town_updates import RelationshipManager
+from tasks.relationships import RelationshipManager
+import logging
 
 class SessionManager:
     def __init__(self) -> None:

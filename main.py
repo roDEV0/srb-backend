@@ -4,11 +4,10 @@ from tortoise import Tortoise
 from settings import TORTOISE_ORM
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from aiohttp import ClientSession
-from requester import post_request
 from tasks.sessions import compare_active_sessions, SessionManager
 import asyncio
-
-from tasks.town_updates import RelationshipManager, check_relationships, recency_checks
+from sse.sse import setup_sse
+from tasks.relationships import RelationshipManager, recency_checks
 
 
 async def initialize():
@@ -25,7 +24,7 @@ async def initialize():
     scheduler.start()
 
     try:
-        await asyncio.Event().wait()
+        await setup_sse(session)
     finally:
         scheduler.shutdown()
         await session.close()
