@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from aiohttp import ClientSession
 from tortoise.expressions import Q
@@ -95,7 +95,7 @@ async def check_towns(session: ClientSession, to_check: list[str]):
         uuid = town['uuid'],
         name = town['name'],
         town_blocks = len(town['coordinates']['townBlocks']),
-        created_at=datetime.fromtimestamp(town['timestamps']['registered'] / 1000),
+        created_at=datetime.fromtimestamp(town['timestamps']['registered'] / 1000, tz=timezone.utc),
         gold=town['stats']['balance']
     ) for town in town_data]
 
@@ -117,7 +117,7 @@ async def check_nation(session: ClientSession, to_check: list[str]):
     new_nations = [Nation(
         uuid=nation['uuid'],
         name=nation['name'],
-        created_at=datetime.fromtimestamp(nation['timestamps']['registered'] / 1000),
+        created_at=datetime.fromtimestamp(nation['timestamps']['registered'] / 1000, tz=timezone.utc),
         gold=nation['stats']['balance']
     ) for nation in nation_data]
 
