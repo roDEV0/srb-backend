@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from aiohttp import ClientSession
+from loguru import logger
 from tortoise.expressions import Q
 from tortoise.transactions import in_transaction
 
@@ -10,6 +11,7 @@ from models.relationships.player_relationships import PlayerTownRelationship, Pl
 from models.relationships.relationship import PlayerRelationship
 from models.base import Player, Town, Nation
 
+logger.add("main.log", format="{time} {level} {message}", rotation="10 MB")
 
 class RelationshipManager:
     def __init__(self) -> None:
@@ -22,7 +24,7 @@ class RelationshipManager:
         self.queue = []
 
 async def check_relationships(session: ClientSession, to_check: list[str]):
-    print("Started Relationship Checks")
+    logger.info("Started relationship checks")
     new_relationships = []
     player_data = await post_request(session, 'players', to_check)
 
@@ -51,10 +53,10 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
     ])
 
     if not new_relationships:
-        print("Finished Relationship Checks")
+        logger.info("Finished relationship checks with no mew relationships")
         return
 
-    print("Starting Transaction")
+    logger.info("Starting relationship transaction with database")
     async with in_transaction():
         try:
             await PlayerTownRelationship.bulk_create(new_relationships, ignore_conflicts=True)
@@ -77,13 +79,12 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
         except Exception:
             pass
 
-    print("Finished Relationship Checks")
+    logger.info("Finished relationship checks successfully")
 
 async def check_towns(session: ClientSession, to_check: list[str]):
-    print("Started Town Checks")
+    logger.info("Started town checks")
 
     player_data = await post_request(session, 'players', to_check)
-    print(f"Player Data: {[player['town']['uuid'] for player in player_data]}")
     town_uuids = list({
         player["town"]["uuid"]
         for player in player_data
@@ -101,10 +102,10 @@ async def check_towns(session: ClientSession, to_check: list[str]):
 
     await Town.bulk_create(new_towns, on_conflict=['uuid'], update_fields=['name', 'town_blocks', 'gold'])
 
-    print("Finished Town Checks")
+    logger.info("Finished town checks successfully")
 
 async def check_nation(session: ClientSession, to_check: list[str]):
-    print("Started Nation Checks")
+    logger.info("Started nation checks")
 
     player_data = await post_request(session, 'players', to_check)
     nation_uuids = list({
@@ -123,11 +124,11 @@ async def check_nation(session: ClientSession, to_check: list[str]):
 
     await Nation.bulk_create(new_nations, on_conflict=['uuid'], update_fields=['name', 'gold'])
 
-    print("Finished Nation Checks")
+    logger.info("Finished nation checks")
 
 async def recency_checks(session: ClientSession, manager: RelationshipManager):
     current_queue = manager.queue
-    print(current_queue)
+    logger.info(f"There are currently {len(current_queue)} players in the queue")
     if current_queue:
         await check_towns(session, current_queue)
         await check_nation(session, current_queue)
