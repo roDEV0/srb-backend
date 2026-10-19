@@ -4,6 +4,8 @@ from datetime import datetime, timezone, timedelta
 import json
 import aiohttp
 from httpx_sse import aconnect_sse, ServerSentEvent, SSEError
+from loguru import logger
+
 from models.events.town_events import *
 from models.events.nation_events import *
 from models.base import *
@@ -18,6 +20,8 @@ headers = {
 SSE_URL = "https://api.earthmc.net/v4/events?listen=TownRenamed,TownCreated,TownDeleted,TownMayorChanged,TownMerged,TownRuined,TownReclaimed,NationCreated,NationDeleted,NationRenamed,NationKingChanged,NationMerged"
 MAX_BACKOFF = 60
 
+logger.add("main.log", format="{time} {level} {message}", rotation="10 MB")
+
 async def setup_sse(session: aiohttp.ClientSession):
     timeout = httpx.Timeout(timeout=5.0, read=None)
 
@@ -26,7 +30,7 @@ async def setup_sse(session: aiohttp.ClientSession):
             async with aconnect_sse(client, "GET", url=SSE_URL, headers=headers) as src:
                 src.response.raise_for_status()
                 async for sse in src.aiter_sse():
-                    print(sse)
+                    logger.info(f"New {sse.event} event received")
                     await handle_event(sse, session)
 
 # TODO: Refactor

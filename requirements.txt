@@ -4,4 +4,5 @@ httpx==0.28.1
 httpx_sse==0.4.3
 tortoise-orm==1.1.9
 asyncpg==0.32.0
+loguru==0.7.3
 

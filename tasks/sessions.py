@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 from dataclasses import dataclass
 import aiohttp
+from loguru import logger
 
 from models.base import Player
 from models.session import ActiveSession, Session
 from requester import post_request, get_request, position_request
 from tasks.relationships import RelationshipManager
-import logging
+
+logger.add("main.log", format="{time} {level} {message}", rotation="10 MB")
 
 class SessionManager:
     def __init__(self) -> None:
@@ -48,7 +50,7 @@ class LocalActiveSession:
 async def handle_new_players(session: aiohttp.ClientSession, new: list[str]):
     if not new:
         return []
-    print(f"New: {new}")
+    logger.info(f"{len(new)} new players have been noticed")
     data = await post_request(session, 'players', new)
     new_instances = [Player(
         uuid=player['uuid'],
@@ -67,7 +69,7 @@ def format_uuid(uuid: str) -> str:
     return f"{uuid[:8]}-{uuid[8:12]}-{uuid[12:16]}-{uuid[16:20]}-{uuid[20:]}"
 
 async def compare_active_sessions(session: aiohttp.ClientSession, manager: SessionManager, relationships: RelationshipManager):
-    print("Starting the compare active sessions process")
+    logger.info("Starting the compare active sessions process")
     uuids = set(item['uuid'] for item in (await get_request(session, 'online'))['players'])
 
     positions = await position_request(session)
@@ -122,6 +124,6 @@ async def compare_active_sessions(session: aiohttp.ClientSession, manager: Sessi
         if local.player_uuid in position_map:
             local.append_position(position_map[local.player_uuid])
 
-    print("Completed the compare active sessions process")
+    logger.info("Completed the compare active sessions process")
 
     relationships.add_to_queue(list(uuids))
