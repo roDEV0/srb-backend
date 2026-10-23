@@ -126,4 +126,4 @@ async def compare_active_sessions(session: aiohttp.ClientSession, manager: Sessi
 
     logger.info("Completed the compare active sessions process")
 
-    relationships.add_to_queue(list(uuids))
+    relationships.add_to_queue([uuid for uuid in uuids if uuid not in relationships.queue])
