@@ -25,7 +25,7 @@ class RelationshipManager:
 
 async def check_relationships(session: ClientSession, to_check: list[str]):
     logger.info("Started relationship checks")
-    new_relationships = []
+    new_town_relationships = []
     player_data = await post_request(session, 'players', to_check)
 
     player_instances = await Player.filter(uuid__in=to_check)
@@ -35,16 +35,16 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
     town_instance_map = {town.uuid: town for town in town_instances}
 
     # Add Citizen Relationships
-    new_relationships.extend([
+    new_town_relationships.extend([
         PlayerTownRelationship(
             player=player_instance_map[player['uuid']],
-            town=town_instance_map[player['town']['uuid']] if player['town']['uuid'] in town_instance_map else None,
+            town=town_instance_map[player['town']['uuid']],
             relationship=PlayerRelationship.CITIZEN
-        ) for player in player_data if player['uuid'] in player_instance_map
+        ) for player in player_data if player['uuid'] in player_instance_map and player['town']['uuid']
     ])
 
     # Add Mayor Relationships
-    new_relationships.extend([
+    new_town_relationships.extend([
         PlayerTownRelationship(
             player=player_instance_map[player['uuid']],
             town=town_instance_map[player['town']['uuid']],
@@ -52,18 +52,40 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
         ) for player in player_data if player['status']['isMayor'] and player['uuid'] in player_instance_map
     ])
 
-    if not new_relationships:
+    new_nation_relationships = []
+    nation_instances = await Nation.filter(uuid__in=[player['nation']['uuid'] for player in player_data if player['nation']['uuid']])
+    nation_instance_map = {nation.uuid: nation for nation in nation_instances}
+
+    new_nation_relationships.extend([
+        PlayerNationRelationship(
+            player=player_instance_map[player['uuid']],
+            nation=nation_instance_map[player['nation']['uuid']],
+            relationship=PlayerRelationship.CITIZEN
+        ) for player in player_data if player['uuid'] in player_instance_map and player['nation']['uuid']
+    ])
+
+    new_nation_relationships.extend([
+        PlayerNationRelationship(
+            player=player_instance_map[player['uuid']],
+            nation=nation_instance_map[player['nation']['uuid']],
+            relationship=PlayerRelationship.KING
+        ) for player in player_data if player['status']['isKing'] and player['uuid'] in player_instance_map
+    ])
+
+    if not new_town_relationships:
         logger.info("Finished relationship checks with no mew relationships")
-        return
+
+    if not new_nation_relationships:
+        logger.info("Finished relationship checks with no mew relationships")
 
     logger.info("Starting relationship transaction with database")
     async with in_transaction():
         try:
-            await PlayerTownRelationship.bulk_create(new_relationships, ignore_conflicts=True)
+            await PlayerTownRelationship.bulk_create(new_town_relationships, ignore_conflicts=True)
 
             query = Q()
 
-            for rel in new_relationships:
+            for rel in new_town_relationships:
                 query |= Q(
                     player_id=rel.player_id,
                     town_id=rel.town_id,
@@ -78,6 +100,30 @@ async def check_relationships(session: ClientSession, to_check: list[str]):
             ).exclude(query).update(ended=True)
         except Exception:
             pass
+
+    async with in_transaction():
+        try:
+            logger.debug([relationship.relationship for relationship in new_nation_relationships])
+            await PlayerNationRelationship.bulk_create(new_nation_relationships, ignore_conflicts=True)
+
+            query = Q()
+
+            for rel in new_nation_relationships:
+                query |= Q(
+                    player_id=rel.player_id,
+                    nation_id=rel.nation_id,
+                    relationship=rel.relationship,
+                )
+
+            await PlayerNationRelationship.filter(
+                player_id__in=[
+                    player_instance_map[uuid].id for uuid in to_check
+                    if uuid in player_instance_map
+                ]
+            ).exclude(query).update(ended=True)
+        except Exception as e:
+            logger.exception(e)
+
 
     logger.info("Finished relationship checks successfully")
 
