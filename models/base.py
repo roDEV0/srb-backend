@@ -8,6 +8,7 @@ class Player(Model):
     playtime = fields.TimeDeltaField(null=True)
     joined = fields.DatetimeField(null=True)
     gold = fields.IntField(null=True)
+    active = fields.BooleanField(default=True)
 
 class Town(Model):
     id = fields.IntField(pk=True)

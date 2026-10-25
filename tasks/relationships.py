@@ -15,13 +15,23 @@ logger.add("main.log", format="{time} {level} {message}", rotation="10 MB")
 
 class RelationshipManager:
     def __init__(self) -> None:
-        self.queue: list[str] = []
+        self.priority_queue: list[str] = []
+        self.long_queue: list[str] = []
 
-    def add_to_queue(self, relationships: list[str]):
-        self.queue.extend(relationships)
+    def get_short_queue(self):
+        return self.priority_queue.copy()
+
+    def get_long_queue(self):
+        return self.long_queue.copy()
+
+    def add_to_priority_queue(self, relationships: list[str]):
+        self.priority_queue.extend(relationships)
+
+    def add_to_long_queue(self, relationships: list[str]):
+        self.long_queue.extend(relationships)
 
     def flush_queue(self):
-        self.queue = []
+        self.priority_queue = []
 
 async def check_relationships(session: ClientSession, to_check: list[str]):
     logger.info("Started relationship checks")
@@ -173,7 +183,7 @@ async def check_nation(session: ClientSession, to_check: list[str]):
     logger.info("Finished nation checks")
 
 async def recency_checks(session: ClientSession, manager: RelationshipManager):
-    current_queue = manager.queue
+    current_queue = manager.priority_queue
     logger.info(f"There are currently {len(current_queue)} players in the queue")
     if current_queue:
         await check_towns(session, current_queue)

@@ -7,6 +7,7 @@ from models.base import Player
 from models.session import ActiveSession, Session
 from requester import post_request, get_request, position_request
 from tasks.relationships import RelationshipManager
+from models.events.player_events import UsernameChangeEvent
 
 logger.add("main.log", format="{time} {level} {message}", rotation="10 MB")
 
@@ -68,6 +69,18 @@ def format_uuid(uuid: str) -> str:
         return uuid
     return f"{uuid[:8]}-{uuid[8:12]}-{uuid[12:16]}-{uuid[16:20]}-{uuid[20:]}"
 
+async def check_new_name(instance: Player, data: dict):
+    if instance.name != data['name']:
+        new_event = UsernameChangeEvent(
+            player=instance,
+            old_username=instance.name,
+            new_username=data['name'],
+        )
+
+        await new_event.create()
+
+    return data['name']
+
 async def compare_active_sessions(session: aiohttp.ClientSession, manager: SessionManager, relationships: RelationshipManager):
     logger.info("Starting the compare active sessions process")
     uuids = set(item['uuid'] for item in (await get_request(session, 'online'))['players'])
@@ -120,10 +133,22 @@ async def compare_active_sessions(session: aiohttp.ClientSession, manager: Sessi
 
     await Session.bulk_create(new_session_instances)
 
+    all_player_instances = await Player.filter(uuid__in=uuids)
+    all_player_data = await post_request(session, 'players', uuids)
+    all_player_map = {player['uuid']: player for player in all_player_data}
+
+    for user in all_player_instances:
+        user_data = all_player_map[user.uuid]
+        user.name = check_new_name(user, user_data)
+        user.gold = user_data['stats']['balance']
+        user.active = True
+
+    await Player.bulk_update(all_player_instances, fields=['name', 'gold', 'active'])
+
     for local in manager.active.values():
         if local.player_uuid in position_map:
             local.append_position(position_map[local.player_uuid])
 
     logger.info("Completed the compare active sessions process")
 
-    relationships.add_to_queue([uuid for uuid in uuids if uuid not in relationships.queue])
+    relationships.add_to_priority_queue([uuid for uuid in uuids if uuid not in relationships.priority_queue])
