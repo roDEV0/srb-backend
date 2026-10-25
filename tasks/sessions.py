@@ -134,14 +134,15 @@ async def compare_active_sessions(session: aiohttp.ClientSession, manager: Sessi
     await Session.bulk_create(new_session_instances)
 
     all_player_instances = await Player.filter(uuid__in=uuids)
-    all_player_data = await post_request(session, 'players', uuids)
+    all_player_data = await post_request(session, 'players', list(uuids))
     all_player_map = {player['uuid']: player for player in all_player_data}
 
     for user in all_player_instances:
-        user_data = all_player_map[user.uuid]
-        user.name = check_new_name(user, user_data)
-        user.gold = user_data['stats']['balance']
-        user.active = True
+        if user.uuid in all_player_map:
+            user_data = all_player_map[user.uuid]
+            user.name = (await check_new_name(user, user_data))
+            user.gold = user_data['stats']['balance']
+            user.active = True
 
     await Player.bulk_update(all_player_instances, fields=['name', 'gold', 'active'])
 

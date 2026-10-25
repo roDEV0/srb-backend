@@ -10,7 +10,7 @@ from sse.sse import setup_sse
 from tasks.relationships import RelationshipManager, recency_checks
 from loguru import logger
 
-from tasks.validity import check_validity
+from tasks.validity import check_validity, refresh_queue
 
 
 async def initialize():
@@ -26,7 +26,11 @@ async def initialize():
     scheduler.add_job(compare_active_sessions, "interval", seconds=10, args=[session, session_manager, relationship_manager])
     scheduler.add_job(recency_checks, "interval", seconds=15, args=[session, relationship_manager])
 
+    scheduler.add_job(refresh_queue, "interval", hours=24, args=[relationship_manager])
     scheduler.add_job(check_validity, "interval", hours=24, args=[session, relationship_manager])
+
+    await refresh_queue(relationship_manager)
+    await check_validity(session, relationship_manager)
 
     logger.info("Starting scheduler")
     scheduler.start()
@@ -39,4 +43,8 @@ async def initialize():
         scheduler.shutdown()
         await session.close()
 
-asyncio.run(initialize())
+if __name__ == "__main__":
+    try:
+        asyncio.run(initialize())
+    except KeyboardInterrupt:
+        pass

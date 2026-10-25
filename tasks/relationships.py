@@ -30,8 +30,11 @@ class RelationshipManager:
     def add_to_long_queue(self, relationships: list[str]):
         self.long_queue.extend(relationships)
 
-    def flush_queue(self):
+    def flush_priority_queue(self):
         self.priority_queue = []
+
+    def flush_long_queue(self):
+        self.long_queue = []
 
 async def check_relationships(session: ClientSession, to_check: list[str]):
     logger.info("Started relationship checks")
@@ -190,5 +193,5 @@ async def recency_checks(session: ClientSession, manager: RelationshipManager):
         await check_nation(session, current_queue)
         await check_relationships(session, current_queue)
 
-    manager.flush_queue()
+    manager.flush_priority_queue()
 

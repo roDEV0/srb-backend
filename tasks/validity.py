@@ -10,6 +10,7 @@ from tasks.relationships import RelationshipManager
 
 async def refresh_queue(manager: RelationshipManager):
     active_players = await Player.filter(active=True).all()
+    manager.flush_long_queue()
     manager.add_to_long_queue([player.uuid for player in active_players if player.uuid not in manager.get_long_queue()])
 
 async def check_validity(session: ClientSession, manager: RelationshipManager):
